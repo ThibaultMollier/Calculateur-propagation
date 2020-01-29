@@ -1,18 +1,19 @@
 #include "main.h"
 
 HINSTANCE hInst;
-HMENU hMenu;
-float Va[50], Vb[50], fin;
+float Va[50], Vb[50], fin,tau;
+
 
 /* This is where all the input to the window goes to */
 LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) {
 	static PAINTSTRUCT ps;
     static HDC hdc;
     
-	static HWND hwndButton, *hwndEdit;
-	static float tau, Zc, Zg, Zl , Eh, Eb;
-	static float Ga, Gb, init, dVa, dVb;
-	TCHAR buf[100] = "NULL";	
+	static HWND hwndButton, *hwndEdit, hwdDataEdit;
+	static float Zc, Zg, Zl;
+	static int Eh,Eb;
+	static float Ga, Gb, init, dVa, dVb, tStab = -1;
+	TCHAR buf[100] = "NULL";
 	
 	switch(Message) {
 		
@@ -22,7 +23,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 			break;
 		
 		case WM_CREATE : 
-			AddMenus(hwnd);
+		
 			hwndButton = CreateWindow( 
 				TEXT("BUTTON"), TEXT("OK"),
 			    WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,  // Styles 
@@ -35,12 +36,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 			    hInst, 
 			    NULL);      // Pointer not needed.
 			    
-			    hwndEdit = createEditField(hwnd);
-			    for(int i = 0 ; i < 50 ; i++){
-					Va[i] = 0;
-					Vb[i] = 0;
-				}
-			    
+		    hwndEdit = createEditField(hwnd);
+		    for(int i = 0 ; i < 50 ; i++){
+				Va[i] = 0;
+				Vb[i] = 0;
+			}    								
+			hwdDataEdit = CreateWindow( 
+				TEXT("EDIT"), TEXT(""),
+			    WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | WS_BORDER | ES_READONLY, // Styles 
+			    1000,         // x position 
+			    10 ,         // y position 
+			    200,        //  width
+			    440,        //  height
+			    hwnd,     // Parent window
+			    (HMENU) EDIT_DATA_ID,
+			    hInst, 
+			    NULL);      // Pointer not needed.
 			    
 			break;
 		case WM_COMMAND:
@@ -52,6 +63,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 						Va[i] = 0;
 						Vb[i] = 0;
 					}
+					tStab = -1;
 					
 					tau = GetDlgItemInt(hwnd,EDIT_ID[5],NULL,FALSE) * GetDlgItemInt(hwnd,EDIT_ID[6],NULL,FALSE);
 					Eh = GetDlgItemInt(hwnd,EDIT_ID[0],NULL,TRUE);
@@ -62,9 +74,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					
 					Ga = (Zg-Zc)/(Zg+Zc);
 					Gb = (Zl-Zc)/(Zl+Zc);
-					init = (Zl/(Zl+Zg))*Eb;
-					fin = (Zl/(Zl+Zg))*Eh;
-					dVa = (Zc/(Zc+Zg))*(Eh-Eb);
+					init = (Zl/(Zl+Zg))*(Eb/1000);
+					fin = (Zl/(Zl+Zg))*(Eh/1000);
+					dVa = (Zc/(Zc+Zg))*(Eh-Eb)/1000;
 					dVb = 0;
 					
 					Va[0] = init;
@@ -79,16 +91,33 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 				        dVb = dVa*Gb;
 				        Vb[i] = Vb[i-1] + dVb + dVa;
 				        Vb[i+1]=Vb[i];
+				        
 				        dVa = dVb*Ga;
 					}
+					Va[49] = Va[48] + dVa + dVb;;
+					for(int i = 0 ; i < 49 ; i++){
+						if((Vb[i] < (fin + fin*0.05)) && (Vb[i] > (fin - fin*0.05))){
+				        	tStab = (i-1)*tau;
+				        	break;
+						}
+					}
+					    
+					_stprintf(buf, _T(" t(ns)\tVa(V)\tVb(V) \n"));
+					SendMessageA(hwdDataEdit, WM_SETTEXT,0,(LPARAM) buf);
+					
+					for(int i = 0 ; i < 50 ; i++){
+						_stprintf(buf, _T("%3.2f\t%3.3f\t%3.3f\n"), (tau*i)/1000, Va[i], Vb[i] );
+						int index = GetWindowTextLength (hwdDataEdit);
+						SetFocus (hwdDataEdit); // set focus
+						SendMessageA(hwdDataEdit, EM_SETSEL, (WPARAM)index, (LPARAM)index); // set selection - end of text
+						SendMessageA(hwdDataEdit, EM_REPLACESEL, 0, (LPARAM) buf); // append!
+					}
+					
+					
 					
 				    InvalidateRgn(hwnd,NULL,TRUE);
 				    UpdateWindow(hwnd);
 
-					break;
-				case DATA_TAB :
-					
-					
 					break;
 			}
 			break;
@@ -96,23 +125,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 	        hdc = BeginPaint(hwnd, &ps);
 	        for(int i = 0 ; i < 7 ; i++){
 	        	TextOut(hdc,10, 50+i*25,TextParam[i], GetTextSize(TextParam[i]));
-	        	TextOut(hdc,105, 50+i*25,TextUnits[i], GetTextSize(TextUnits[i]));
+	        	TextOut(hdc,115, 50+i*25,TextUnits[i], GetTextSize(TextUnits[i]));
 			}
 			
 			_stprintf(buf, _T("tau : %3.1f ps"), tau);
 			TextOut(hdc,20, 300,buf, GetTextSize(buf));
-			_stprintf(buf, _T("Ga : %2.2f"),Ga);
+			_stprintf(buf, _T("Ga : %3.3f"),Ga);
 			TextOut(hdc,20, 320,buf, GetTextSize(buf));
-			_stprintf(buf, _T("Gb : %2.2f"), Gb);
+			_stprintf(buf, _T("Gb : %3.3f"), Gb);
 			TextOut(hdc,20, 340,buf, GetTextSize(buf));
-			_stprintf(buf, _T("V(t=0-) : %2.2f V"), init);
+			_stprintf(buf, _T("V(t=0-) : %3.3f V"), init);
 			TextOut(hdc,20, 360,buf, GetTextSize(buf));
-			_stprintf(buf, _T("V(t=inf) : %2.2f V"), fin);
+			_stprintf(buf, _T("V(t=inf) : %3.3f V"), fin);
 			TextOut(hdc,20, 380,buf, GetTextSize(buf));
-			
+			_stprintf(buf, _T("Stabilisat° : %3.1f ns"), tStab/1000);
+			TextOut(hdc,20, 380,buf, GetTextSize(buf));
 			DrawGraph(hdc);
-			
-	        EndPaint(hwnd, &ps);
+			EndPaint(hwnd, &ps);
 	        break;
 		/* All other messages (a lot of them) are processed using default procedures */
 		default:
@@ -150,7 +179,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,"WindowClass","CEM",WS_VISIBLE|WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, /* x */
 		CW_USEDEFAULT, /* y */
-		1080, /* width */
+		1220, /* width */
 		540, /* height */
 		NULL,NULL,hInstance,NULL);
 
@@ -186,7 +215,7 @@ HWND* createEditField(HWND m_hwnd){
 			    WS_VISIBLE | WS_CHILD | WS_BORDER ,  // Styles 
 			    60,         // x position 
 			    50 + (i*25),         // y position 
-			    40,        //  width
+			    50,        //  width
 			    20,        //  height
 			    m_hwnd,     // Parent window
 			    (HMENU) EDIT_ID[i],
@@ -234,14 +263,6 @@ float getmin(float val1[], float val2[], int size){
 	return min;
 }
 
-void AddMenus(HWND hwnd) {
-
-    HMENU hMenubar;
-    hMenubar = CreateMenu();
-    AppendMenuW(hMenubar, MF_STRING, DATA_TAB, L"&Tableau");
-    SetMenu(hwnd, hMenubar);
-}
-
 void DrawGraph(HDC hdc){
 	float max = getmax(Va,Vb,50);
 	float min = getmin(Va,Vb,50);
@@ -249,58 +270,94 @@ void DrawGraph(HDC hdc){
 	int zero = 20+(max/res);
 	
 	TCHAR txt[20] = "NULL";
-	HPEN hPen1 = CreatePen(PS_SOLID, 1, RGB(160, 160, 160));
+	HPEN hPenDefault = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+	HPEN hPen1 = CreatePen(PS_SOLID, 1, RGB(250, 250, 50));
+	HPEN hPent = CreatePen(PS_DASHDOT, 1, RGB(200, 200, 200));
 	HPEN hPenA = CreatePen(PS_SOLID, 1, RGB(0, 0, 250));
-	HPEN hPenB = CreatePen(PS_SOLID, 1, RGB(0, 250, 0));
+	HPEN hPenB = CreatePen(PS_SOLID, 1, RGB(250, 0, 0));
 	
 	Rectangle(hdc, 200, 10, 1000, 450);
-	MoveToEx(hdc,200,zero,NULL);
-	LineTo(hdc,1000,zero);
 	
-	HPEN holdPen = SelectObject(hdc, hPen1);
-	MoveToEx(hdc,200,20,NULL);
-	LineTo(hdc,1000,20);
 	
-	MoveToEx(hdc,200,440,NULL);
-	LineTo(hdc,1000,440);
-	
-	MoveToEx(hdc,200,zero-fin/res,NULL);
-	LineTo(hdc,1000,zero-fin/res);
-	
-	SelectObject(hdc, hPenA);
-	int y = zero - Va[0]/res;
-	int x = 200;	
-	for(int i = 0 ; i < 20 ; i++){
+	if(tau){
 		
-		MoveToEx(hdc,x,y,NULL);
-		y = zero - Va[i]/res;
-		LineTo(hdc,x,y);	
-		MoveToEx(hdc,x,y,NULL);
-		x = (i+1)*40 + 200;
-		LineTo(hdc,x,y);
+		HPEN holdPen = SelectObject(hdc, hPen1);
+		MoveToEx(hdc,200,20,NULL);
+		LineTo(hdc,1000,20);
+		
+		MoveToEx(hdc,200,440,NULL);
+		LineTo(hdc,1000,440);
+		
+		MoveToEx(hdc,200,zero-fin/res,NULL);
+		LineTo(hdc,1000,zero-fin/res);
+		
+		SelectObject(hdc, hPenDefault);
+		MoveToEx(hdc,200,zero,NULL);
+		LineTo(hdc,1000,zero);
+		
+		int y = zero - Va[0]/res;
+		int x = 200;
+		
+		SelectObject(hdc, hPent);
+		for(int i = 0 ; i < 20 ; i++){
+			
+			x = (i+1)*40 + 200;
+			MoveToEx(hdc,x,10,NULL);
+			LineTo(hdc,x,440);
+
+			if(!(i%2)){
+				_stprintf(txt, "%dt", i);
+				TextOut(hdc,x-5, zero - 8,txt, GetTextSize(txt));
+			}	
+		}
+		
+		SelectObject(hdc, hPenA);
+		x = 200;	
+		for(int i = 0 ; i < 20 ; i++){
+			
+			MoveToEx(hdc,x,y,NULL);
+			y = zero - Va[i]/res;
+			LineTo(hdc,x,y);	
+			MoveToEx(hdc,x,y,NULL);
+			x = (i+1)*40 + 200;
+			LineTo(hdc,x,y);
+			
+		}
+		
+		SelectObject(hdc, hPenB);
+		y = zero - Vb[0]/res;
+		x = 200;	
+		for(int i = 0 ; i < 20 ; i++){
+			
+			MoveToEx(hdc,x,y,NULL);
+			y = zero - Vb[i]/res;
+			LineTo(hdc,x,y);	
+			MoveToEx(hdc,x,y,NULL);
+			x = (i+1)*40 + 200;
+			LineTo(hdc,x,y);
+					
+		}
+		
+		TextOut(hdc,175, zero-8,"0V", 3);
+		_stprintf(txt, _T("%3.1f V"), max);
+		TextOut(hdc,950, 12,txt, GetTextSize(txt));
+		if(min!=0){
+			_stprintf(txt, _T("%3.1f V"), min);
+			TextOut(hdc,950, 432,txt, GetTextSize(txt));
+		}
+		_stprintf(txt, _T("%3.1f V"), fin);
+		TextOut(hdc,950, (zero-fin/res)-8,txt, GetTextSize(txt));
+		SetTextColor(hdc,RGB(0, 0, 250));
+		TextOut(hdc,140, 0 ,"Va", 3);
+		SetTextColor(hdc,RGB(250, 0, 0));
+		TextOut(hdc,160, 0 ,"Vb", 3);
+		SetTextColor(hdc,RGB(0, 0, 0));
 		
 	}
-	
-	SelectObject(hdc, hPenB);
-	y = zero - Vb[0]/res;
-	x = 200;	
-	for(int i = 0 ; i < 20 ; i++){
-		
-		MoveToEx(hdc,x,y,NULL);
-		y = zero - Vb[i]/res;
-		LineTo(hdc,x,y);	
-		MoveToEx(hdc,x,y,NULL);
-		x = (i+1)*40 + 200;
-		LineTo(hdc,x,y);
-		
-	}
-	
-	TextOut(hdc,180, zero,"0", 2);
-	_stprintf(txt, _T("%3.1f V"), max);
-	TextOut(hdc,220, 12,txt, GetTextSize(txt));
-	_stprintf(txt, _T("%3.1f V"), min);
-	TextOut(hdc,220, 432,txt, GetTextSize(txt));
-	_stprintf(txt, _T("%3.1f V"), fin);
-	TextOut(hdc,950, (zero-fin/res)-8,txt, GetTextSize(txt));
+	DeleteObject(hPen1);
+	DeleteObject(hPent);
+	DeleteObject(hPenA);
+	DeleteObject(hPenB);
+	DeleteObject(hPenDefault);
 	
 }
