@@ -71,6 +71,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					}
 					tStab = -1;
 					
+					/* Get parameters from edit field */
 					tau = GetDlgItemInt(hwnd,EDIT_ID[5],NULL,FALSE) * GetDlgItemInt(hwnd,EDIT_ID[6],NULL,FALSE);
 					Eh = GetDlgItemInt(hwnd,EDIT_ID[0],NULL,TRUE);
 					Eb = GetDlgItemInt(hwnd,EDIT_ID[1],NULL,TRUE);
@@ -89,7 +90,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					Vb[0] = init;
 					Vb[1] = init;
 					
-					
+					/* Compute Va and Vb value */
 					for(int i = 1 ; i < 49 ; i++){
 				        Va[i] = Va[i-1] + dVa + dVb;
 				        Va[i+1] = Va[i];
@@ -100,7 +101,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 				        
 				        dVa = dVb*Ga;
 					}
-					Va[49] = Va[48] + dVa + dVb;;
+					Va[49] = Va[48] + dVa + dVb;
+					
+					/* Compute the stabilization time (5%)*/
 					for(int i = 0 ; i < 49 ; i++){
 						if((fabs(Vb[i]) < (fabs(fin) + fabs(fin*0.05))) && (fabs(Vb[i]) > (fabs(fin) - fabs(fin*0.05)))){
 				        	tStab = (i-1)*tau;
@@ -111,6 +114,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					_stprintf(buf, _T(" t(ns)\tVa(V)\tVb(V) \n"));
 					SendMessageA(hwdDataEdit, WM_SETTEXT,0,(LPARAM) buf);
 					
+					/* Print raw data to edit*/
 					for(int i = 0 ; i < 50 ; i++){
 						_stprintf(buf, _T("%3.2f\t%3.3f\t%3.3f\n"), (tau*(i-1))/1000, Va[i], Vb[i] );
 						int index = GetWindowTextLength (hwdDataEdit);
@@ -119,8 +123,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 						SendMessageA(hwdDataEdit, EM_REPLACESEL, 0, (LPARAM) buf); // append!
 					}
 					
-					
-					
+					/* Redraw all the window */
 				    InvalidateRgn(hwnd,NULL,TRUE);
 				    UpdateWindow(hwnd);
 
@@ -158,8 +161,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
             SelectObject(hdcMem, oldBitmap);
             DeleteDC(hdcMem);
 
-			
-			
 			EndPaint(hwnd, &ps);
 	        break;
 		/* All other messages (a lot of them) are processed using default procedures */
@@ -195,7 +196,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 0;
 	}
 
-	hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,"WindowClass","CEM",WS_VISIBLE|WS_OVERLAPPEDWINDOW,
+	hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,"WindowClass","Calculateur propagation",WS_VISIBLE|WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, /* x */
 		CW_USEDEFAULT, /* y */
 		1220, /* width */
@@ -224,7 +225,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return msg.wParam;
 }
 
-
+/*
+	Create seven edit field to allow user to enter parameter	
+*/
 HWND* createEditField(HWND m_hwnd){
 	HWND hwndEdit[7];
 	
@@ -245,6 +248,9 @@ HWND* createEditField(HWND m_hwnd){
 	return hwndEdit;
 }
 
+/*
+	Return the size of a string
+*/
 int GetTextSize (LPSTR st)
 {
     for (int i = 0; ;i++)
@@ -254,6 +260,9 @@ int GetTextSize (LPSTR st)
     }
 }
 
+/*
+	Return the max value of val1 or val2
+*/
 float getmax(float val1[], float val2[], int size){
 	float max ;
 	
@@ -268,6 +277,9 @@ float getmax(float val1[], float val2[], int size){
 	return max;
 }
 
+/*
+	Return the min value of val1 or val2
+*/
 float getmin(float val1[], float val2[], int size){
 	float min ;
 	
@@ -282,6 +294,9 @@ float getmin(float val1[], float val2[], int size){
 	return min;
 }
 
+/*
+	Draw the graph 
+*/
 void DrawGraph(HDC hdc){
 	float max = getmax(Va,Vb,50);
 	float min = getmin(Va,Vb,50);
