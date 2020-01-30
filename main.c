@@ -14,6 +14,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 	static int Eh,Eb;
 	static float Ga, Gb, init, dVa, dVb, tStab = -1;
 	TCHAR buf[100] = "NULL";
+	BITMAP bitmap;
+	static HBITMAP hBitmap;
+	HDC hdcMem;
+    HGDIOBJ oldBitmap;
 	
 	switch(Message) {
 		
@@ -23,14 +27,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 			break;
 		
 		case WM_CREATE : 
-		
+			hBitmap = (HBITMAP) LoadImageW(NULL, L".\\sch.bmp", 
+                        IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+                        
 			hwndButton = CreateWindow( 
 				TEXT("BUTTON"), TEXT("OK"),
 			    WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,  // Styles 
-			    40,         // x position 
-			    250,         // y position 
-			    50,        // Button width
-			    25,        // Button height
+			    60,         // x position 
+			    310,         // y position 
+			    70,        // Button width
+			    35,        // Button height
 			    hwnd,     // Parent window
 			    (HMENU) BUTTON_ID,       // No menu.
 			    hInst, 
@@ -96,7 +102,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					}
 					Va[49] = Va[48] + dVa + dVb;;
 					for(int i = 0 ; i < 49 ; i++){
-						if((Vb[i] < (fin + fin*0.05)) && (Vb[i] > (fin - fin*0.05))){
+						if((fabs(Vb[i]) < (fabs(fin) + fabs(fin*0.05))) && (fabs(Vb[i]) > (fabs(fin) - fabs(fin*0.05)))){
 				        	tStab = (i-1)*tau;
 				        	break;
 						}
@@ -106,7 +112,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					SendMessageA(hwdDataEdit, WM_SETTEXT,0,(LPARAM) buf);
 					
 					for(int i = 0 ; i < 50 ; i++){
-						_stprintf(buf, _T("%3.2f\t%3.3f\t%3.3f\n"), (tau*i)/1000, Va[i], Vb[i] );
+						_stprintf(buf, _T("%3.2f\t%3.3f\t%3.3f\n"), (tau*(i-1))/1000, Va[i], Vb[i] );
 						int index = GetWindowTextLength (hwdDataEdit);
 						SetFocus (hwdDataEdit); // set focus
 						SendMessageA(hwdDataEdit, EM_SETSEL, (WPARAM)index, (LPARAM)index); // set selection - end of text
@@ -124,23 +130,36 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 		case WM_PAINT:
 	        hdc = BeginPaint(hwnd, &ps);
 	        for(int i = 0 ; i < 7 ; i++){
-	        	TextOut(hdc,10, 50+i*25,TextParam[i], GetTextSize(TextParam[i]));
-	        	TextOut(hdc,115, 50+i*25,TextUnits[i], GetTextSize(TextUnits[i]));
+	        	TextOut(hdc,30, 130+i*25,TextParam[i], GetTextSize(TextParam[i]));
+	        	TextOut(hdc,130, 130+i*25,TextUnits[i], GetTextSize(TextUnits[i]));
 			}
 			
 			_stprintf(buf, _T("tau : %3.1f ps"), tau);
-			TextOut(hdc,20, 300,buf, GetTextSize(buf));
+			TextOut(hdc,50, 350,buf, GetTextSize(buf));
 			_stprintf(buf, _T("Ga : %3.3f"),Ga);
-			TextOut(hdc,20, 320,buf, GetTextSize(buf));
+			TextOut(hdc,50, 370,buf, GetTextSize(buf));
 			_stprintf(buf, _T("Gb : %3.3f"), Gb);
-			TextOut(hdc,20, 340,buf, GetTextSize(buf));
+			TextOut(hdc,50, 390,buf, GetTextSize(buf));
 			_stprintf(buf, _T("V(t=0-) : %3.3f V"), init);
-			TextOut(hdc,20, 360,buf, GetTextSize(buf));
+			TextOut(hdc,50, 410,buf, GetTextSize(buf));
 			_stprintf(buf, _T("V(t=inf) : %3.3f V"), fin);
-			TextOut(hdc,20, 380,buf, GetTextSize(buf));
+			TextOut(hdc,50, 430,buf, GetTextSize(buf));
 			_stprintf(buf, _T("Stabilisat° : %3.1f ns"), tStab/1000);
-			TextOut(hdc,20, 380,buf, GetTextSize(buf));
+			TextOut(hdc,50, 450,buf, GetTextSize(buf));
 			DrawGraph(hdc);
+			
+			hdcMem = CreateCompatibleDC(hdc);
+            oldBitmap = SelectObject(hdcMem, hBitmap);
+
+            GetObject(hBitmap, sizeof(bitmap), &bitmap);
+            BitBlt(hdc, 5, 25, bitmap.bmWidth, bitmap.bmHeight, 
+                 hdcMem, 0, 0, SRCCOPY);
+
+            SelectObject(hdcMem, oldBitmap);
+            DeleteDC(hdcMem);
+
+			
+			
 			EndPaint(hwnd, &ps);
 	        break;
 		/* All other messages (a lot of them) are processed using default procedures */
@@ -213,8 +232,8 @@ HWND* createEditField(HWND m_hwnd){
 		hwndEdit[i] = CreateWindow( 
 				TEXT("EDIT"), TEXT(""),
 			    WS_VISIBLE | WS_CHILD | WS_BORDER ,  // Styles 
-			    60,         // x position 
-			    50 + (i*25),         // y position 
+			    80,         // x position 
+			    130 + (i*25),         // y position 
 			    50,        //  width
 			    20,        //  height
 			    m_hwnd,     // Parent window
@@ -236,7 +255,7 @@ int GetTextSize (LPSTR st)
 }
 
 float getmax(float val1[], float val2[], int size){
-	float max = -10;
+	float max ;
 	
 	for(int i = 0;i < size; i++){
 		if(val1[i] > max){
@@ -250,7 +269,7 @@ float getmax(float val1[], float val2[], int size){
 }
 
 float getmin(float val1[], float val2[], int size){
-	float min = 10;
+	float min ;
 	
 	for(int i = 0;i < size; i++){
 		if(val1[i] < min){
