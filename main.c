@@ -1,7 +1,10 @@
 #include "main.h"
 
+WNDPROC oldEditProc;
 HINSTANCE hInst;
-float Va[50], Vb[50], fin,tau;
+float Va[50], Vb[50],dVa[50], dVb[50], fin,tau;
+HWND hwndEdit[7];
+HWND hwnd;
 
 
 /* This is where all the input to the window goes to */
@@ -9,10 +12,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 	static PAINTSTRUCT ps;
     static HDC hdc;
     
-	static HWND hwndButton, *hwndEdit, hwdDataEdit;
+	static HWND hwndButton, hwdDataEdit;
 	static float Zc, Zg, Zl;
 	static int Eh,Eb;
-	static float Ga, Gb, init, dVa, dVb, tStab = -1;
+	static float Ga, Gb, init, RefA, RefB, tStab = -1;
 	TCHAR buf[100] = "NULL";
 	BITMAP bitmap;
 	static HBITMAP hBitmap;
@@ -42,29 +45,28 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 			    hInst, 
 			    NULL);      // Pointer not needed.
 			    
-		    hwndEdit = createEditField(hwnd);
+		    createEditField(hwnd);
 		    for(int i = 0 ; i < 50 ; i++){
 				Va[i] = 0;
 				Vb[i] = 0;
 			}    								
 			hwdDataEdit = CreateWindow( 
 				TEXT("EDIT"), TEXT(""),
-			    WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | WS_BORDER | ES_READONLY, // Styles 
+			    WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | WS_BORDER | ES_READONLY, // Styles 
 			    1000,         // x position 
 			    10 ,         // y position 
-			    200,        //  width
-			    440,        //  height
+			    325,        //  width
+			    457,        //  height
 			    hwnd,     // Parent window
 			    (HMENU) EDIT_DATA_ID,
 			    hInst, 
-			    NULL);      // Pointer not needed.
-			    
-			break;
+			    NULL);      // Pointer not needed.			    
+			break;			
 		case WM_COMMAND:
+
 			switch(wParam)
-			{
-				case BUTTON_ID:
-					
+			{	
+				case BUTTON_ID:		
 					for(int i = 0 ; i < 50 ; i++){
 						Va[i] = 0;
 						Vb[i] = 0;
@@ -83,8 +85,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					Gb = (Zl-Zc)/(Zl+Zc);
 					init = (Zl/(Zl+Zg))*(Eb/1000);
 					fin = (Zl/(Zl+Zg))*(Eh/1000);
-					dVa = (Zc/(Zc+Zg))*(Eh-Eb)/1000;
-					dVb = 0;
+					RefA = (Zc/(Zc+Zg))*(Eh-Eb)/1000;
+					RefB = 0;
+					
+					dVa[0] = 0;
+					dVb[0] = 0;
 					
 					Va[0] = init;
 					Vb[0] = init;
@@ -92,16 +97,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 					
 					/* Compute Va and Vb value */
 					for(int i = 1 ; i < 49 ; i++){
-				        Va[i] = Va[i-1] + dVa + dVb;
+				        Va[i] = Va[i-1] + RefA + RefB;
+				        dVa[i] = RefA + RefB;
 				        Va[i+1] = Va[i];
+				        dVa[i+1] = 0; 
 				        i++;
-				        dVb = dVa*Gb;
-				        Vb[i] = Vb[i-1] + dVb + dVa;
+				        RefB = RefA*Gb;
+				        Vb[i] = Vb[i-1] + RefB + RefA;
+				        dVb[i] = RefA + RefB;
 				        Vb[i+1]=Vb[i];
+				        dVb[i+1]=0;
 				        
-				        dVa = dVb*Ga;
+				        RefA = RefB*Ga;
 					}
-					Va[49] = Va[48] + dVa + dVb;
+					Va[49] = Va[48] + RefA + RefB;
 					
 					/* Compute the stabilization time (5%)*/
 					for(int i = 0 ; i < 49 ; i++){
@@ -111,12 +120,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 						}
 					}
 					    
-					_stprintf(buf, _T(" t(ns)\tVa(V)\tVb(V) \n"));
+					_stprintf(buf, _T(" t(ns)\tVa(V)\tdVa(V)\tdVb(V)\tVb(V) \n"));
 					SendMessageA(hwdDataEdit, WM_SETTEXT,0,(LPARAM) buf);
 					
 					/* Print raw data to edit*/
 					for(int i = 0 ; i < 50 ; i++){
-						_stprintf(buf, _T("%3.2f\t%3.3f\t%3.3f\n"), (tau*(i-1))/1000, Va[i], Vb[i] );
+						_stprintf(buf, _T("%3.2f\t%3.3f\t%3.3f\t%3.3f\t%3.3f\n"), (tau*(i-1))/1000, Va[i], dVa[i], dVb[i], Vb[i] );
 						int index = GetWindowTextLength (hwdDataEdit);
 						SetFocus (hwdDataEdit); // set focus
 						SendMessageA(hwdDataEdit, EM_SETSEL, (WPARAM)index, (LPARAM)index); // set selection - end of text
@@ -170,10 +179,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 	return 0;
 }
 
+LRESULT CALLBACK subEditProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_KEYDOWN:
+		switch (wParam) { 
+			case 0x09: 
+		    case 0x0D:  
+		    	for(int i=0;i<7;i++){
+		    		if(wnd == hwndEdit[i]){
+		    			if(i==6){
+		    				SendMessage(hwnd, WM_COMMAND, BUTTON_ID, 0);
+						}else{
+							SetFocus(hwndEdit[i+1]);
+						}	
+					}      	
+				}                 
+	        	break; 
+		}
+		break;
+	default:
+	     return CallWindowProc(oldEditProc, wnd, msg, wParam, lParam);
+	}
+	return 0;
+}
+
 /* The 'main' function of Win32 GUI programs: this is where execution starts */
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	WNDCLASSEX wc; /* A properties struct of our window */
-	HWND hwnd; /* A 'HANDLE', hence the H, or a pointer to our window */
 	MSG msg; /* A temporary location for all messages */
 	
 	hInst = hInstance;
@@ -199,8 +233,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,"WindowClass","Calculateur propagation",WS_VISIBLE|WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, /* x */
 		CW_USEDEFAULT, /* y */
-		1220, /* width */
-		540, /* height */
+		1350, /* width */
+		600, /* height */
 		NULL,NULL,hInstance,NULL);
 
 
@@ -228,8 +262,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 /*
 	Create seven edit field to allow user to enter parameter	
 */
-HWND* createEditField(HWND m_hwnd){
-	HWND hwndEdit[7];
+void createEditField(HWND m_hwnd){
+	
 	
 	for(int i = 0 ; i < 7 ; i++){
 		hwndEdit[i] = CreateWindow( 
@@ -243,9 +277,8 @@ HWND* createEditField(HWND m_hwnd){
 			    (HMENU) EDIT_ID[i],
 			    hInst, 
 			    NULL);      // Pointer not needed.
+		oldEditProc = (WNDPROC)SetWindowLongPtr(hwndEdit[i], GWLP_WNDPROC, (LONG_PTR)subEditProc);
 	}
-	
-	return hwndEdit;
 }
 
 /*
@@ -340,7 +373,11 @@ void DrawGraph(HDC hdc){
 			LineTo(hdc,x,440);
 
 			if(!(i%2)){
-				_stprintf(txt, "%dt", i);
+				if(i==0){
+					_stprintf(txt, "%d", i);
+				}else{
+					_stprintf(txt, "%dt", i);
+				}
 				TextOut(hdc,x-5, zero - 8,txt, GetTextSize(txt));
 			}	
 		}
@@ -373,14 +410,18 @@ void DrawGraph(HDC hdc){
 		}
 		
 		TextOut(hdc,175, zero-8,"0V", 3);
-		_stprintf(txt, _T("%3.1f V"), max);
-		TextOut(hdc,950, 12,txt, GetTextSize(txt));
+		if(max!=0){
+			_stprintf(txt, _T("%3.1f V"), max);
+			TextOut(hdc,950, 12,txt, GetTextSize(txt));
+		}
 		if(min!=0){
 			_stprintf(txt, _T("%3.1f V"), min);
 			TextOut(hdc,950, 432,txt, GetTextSize(txt));
 		}
-		_stprintf(txt, _T("%3.1f V"), fin);
-		TextOut(hdc,950, (zero-fin/res)-8,txt, GetTextSize(txt));
+		if(fin!=0){
+			_stprintf(txt, _T("%3.1f V"), fin);
+			TextOut(hdc,950, (zero-fin/res)-8,txt, GetTextSize(txt));
+		}
 		SetTextColor(hdc,RGB(0, 0, 250));
 		TextOut(hdc,140, 0 ,"Va", 3);
 		SetTextColor(hdc,RGB(250, 0, 0));

@@ -7,10 +7,10 @@
 #include <commctrl.h>
 
 #define BUTTON_ID 1000
-#define EDIT_DATA_ID 1001
+#define EDIT_DATA_ID 1008
 
 
-HWND* createEditField(HWND m_hwnd);
+void createEditField(HWND m_hwnd);
 int GetTextSize (LPSTR st);
 void DrawGraph(HDC hdc);
 float getmax(float val1[], float val2[], int size);
