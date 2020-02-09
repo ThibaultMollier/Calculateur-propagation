@@ -8,6 +8,7 @@
 
 #define BUTTON_ID 1000
 #define EDIT_DATA_ID 1008
+#define EDIT_DUREE_ID 1009
 
 
 void createEditField(HWND m_hwnd);
