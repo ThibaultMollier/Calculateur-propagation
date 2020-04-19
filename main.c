@@ -196,6 +196,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 			break;
 		case WM_PAINT:
 	        hdc = BeginPaint(hwnd, &ps);
+	        
+	        TextOut(hdc,10,530,"Mollier T.", 11);
+	        
 	        for(int i = 0 ; i < 7 ; i++){
 	        	TextOut(hdc,30, 130+i*25,TextParam[i], GetTextSize(TextParam[i]));
 	        	TextOut(hdc,130, 130+i*25,TextUnits[i], GetTextSize(TextUnits[i]));
