@@ -1,1 +1,1 @@
-# Calculateur de propagation d'un signale sur une liaison numérique
+# Calculateur de propagation d'un signal sur une liaison numérique
